@@ -29,3 +29,55 @@ jobs:
       # Запускает команду go vet
         run: |
           go vet ./...
+    # это название задания
+    deploy:
+    # Эта строка будет выводиться как заголовок задания в GitHub Actions
+    name: Push Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    # Задание deploy запустится только после успешного завершения задания test
+    needs: test
+    # Задание deploy запустится только в случае указания тега для коммита, который вы пушите в GitHub
+    if: startsWith(github.ref, 'refs/tags')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker buildx
+      # Действие GitHub для настройки Docker Buildx. Это действие создаст и загрузит 
+      # конструктор, который можно использовать на следующих этапах вашего рабочего процесса, 
+      # например, для сборки образа Docker. Версия 3 - самая последняя
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+      # Действие GitHub для входа в DockerHub. Используем последнюю 3 версию
+        uses: docker/login-action@v3
+        with:
+        # Имя пользователя DockerHub, которое вы добавляли в секреты. Теперь вы получаете 
+        # значение секрета, обращаясь к нему по имени DOCKER_USERNAME
+          username: ${{ secrets.DOCKER_USERNAME }}
+          # Токен, который вы генерировали в DockerHub, а потом сохранили в секретах репозитория
+          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        # Действие GitHub для получения метаданных для DockerHub, например тегов или меток. Это 
+        # нужно для того, чтобы добавить тег к имени образа вашего приложения в DockerHub
+        uses: docker/metadata-action@v5.5.1
+        with:
+        # мя вашего Docker-образа, который вы будете пушить в DockerHub
+          images: olegshu181/new2
+
+      - name: Build and push Docker Inage
+      # Действие GitHub для сборки Docker образа и отправки его в DockerHub
+        uses: docker/build-push-action@v5
+        with:
+        # Контекст для сборки образа. В данном случае текущий каталог
+          context: .
+          # Говорит о том, что при успешной сборки образа, нужно будет запушить его в DockerHub
+          push: true
+          # Из шага выше, которому присвоен id meta получает тег, 
+          # чтобы добавить его к имени вашего образа
+          tags: ${{ steps.meta.outputs.tags }}
+          # Из шага выше, которому присвоен id meta получает метку, 
+          # чтобы добавить её к вашему образу. Но у вас меток нет.
+          labels: ${{ steps.meta.outputs.labels }} 
